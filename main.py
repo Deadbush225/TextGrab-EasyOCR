@@ -1,17 +1,16 @@
 import sys
 import os
-import tempfile
 from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import QObject, Qt, pyqtSlot, pyqtSignal, QThread
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QThread, QBuffer
+# from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtGui import QKeySequence, QIcon, QScreen
 from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox, QVBoxLayout, QWidget, QShortcut,\
-    QPushButton, QTextEdit, QLineEdit, QFormLayout, QHBoxLayout, QCheckBox, QSpinBox, QDoubleSpinBox
+    QSystemTrayIcon, QMenu, QAction
 from pynput.mouse import Controller
 
 from PIL import ImageGrab, Image
 import numpy as np
-from screeninfo import get_monitors
+# from screeninfo import get_monitors
 
 import easyocr
 
@@ -19,14 +18,12 @@ QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
 QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
 
 
-
-class App(QWidget):
-    isProcessing = False
+class App(QSystemTrayIcon):
+    # isProcessing = False
 
     def __init__(self):
         super().__init__()
-        # self.args = args
-        # self.model = cli.LatexOCR(self.args)
+
         self.initUI()
         self.initOCR()
         self.snipWidget = SnipWidget(self)
@@ -34,74 +31,49 @@ class App(QWidget):
         self.show()
 
     def initUI(self):
-        self.setWindowTitle("LaTeX OCR")
+        # self.setWindowTitle("LaTeX OCR")
         # QApplication.setWindowIcon(QtGui.QIcon(':/icons/icon.svg'))
-        self.left = 300
-        self.top = 300
-        self.width = 500
-        self.height = 300
-        self.setGeometry(self.left, self.top, self.width, self.height)
 
         # Create snip button
-        self.snipButton = QPushButton('Snip [Alt+S]', self)
-        self.snipButton.clicked.connect(self.onClick)
+        self.menu = QMenu()
 
-        self.shortcut = QShortcut(QKeySequence("Alt+S"), self)
-        self.shortcut.activated.connect(self.onClick)
+        self.snipButton = QAction('Snip [Alt+S]', self)
+        self.snipButton.triggered.connect(self.onClick)
+        self.snipButton.setShortcut(QKeySequence(Qt.Key_Alt | Qt.Key_S))
+
+        # self.shortcut = QShortcut(QKeySequence("Alt+S"), self)
+        # self.shortcut.activated.connect(self.onClick)
 
         # Create retry button
-        self.closeButton = QPushButton('Close', self)
-        self.closeButton.clicked.connect(self.close)
+        self.closeButton = QAction('Close', self)
+        self.closeButton.triggered.connect(QApplication.quit)
+
+        self.menu.addAction(self.snipButton)
+        self.menu.addAction(self.closeButton)
 
         # Create layout
-        buttons = QVBoxLayout()
-        buttons.addWidget(self.snipButton)
-        buttons.addWidget(self.closeButton)
-        self.setLayout(buttons)
+        # buttons = QVBoxLayout()
+        # buttons.addWidget(self.snipButton)
+        # buttons.addWidget(self.closeButton)
+        # self.setLayout(buttons)
+
+        # Adding item on the menu bar
+        # self.tray = QSystemTrayIcon()
+        self.setIcon(QIcon("ocr.png"))
+        self.setVisible(True)
+        self.setContextMenu(self.menu)
 
     def initOCR(self):
-        # self.reader = ""
+        # self.reader = "OCR"
         self.reader = easyocr.Reader(['en'])
 
-    def toggleProcessing(self, value=None):
-        if value is None:
-            self.isProcessing = not self.isProcessing
-        else:
-            self.isProcessing = value
-        if self.isProcessing:
-            text = 'Interrupt'
-            func = self.interrupt
-        else:
-            text = 'Snip [Alt+S]'
-            func = self.onClick
-            self.retryButton.setEnabled(True)
-        self.shortcut.setEnabled(not self.isProcessing)
-        self.snipButton.setText(text)
-        self.snipButton.clicked.disconnect()
-        self.snipButton.clicked.connect(func)
-        self.displayPrediction()
-
-    # @pyqtSlot()
     def onClick(self):
-        self.close()
+        # self.showMinimized()
         self.snipWidget.snip()
 
-    # @pyqtSlot()
     def returnPrediction(self, result):
         print(3)
-        # self.toggleProcessing(False)
-        # success, prediction = result["success"], result["prediction"]
 
-        # if success:
-        #     self.displayPrediction(prediction)
-        #     self.retryButton.setEnabled(True)
-        # else:
-        #     self.webView.setHtml("")
-        #     msg = QMessageBox()
-        #     msg.setWindowTitle(" ")
-        #     msg.setText("Prediction failed.")
-        #     msg.exec_()
-        
         print(f"result: {result}")
 
         clipboard = QApplication.clipboard()
@@ -109,23 +81,13 @@ class App(QWidget):
         clipboard.setText(result, clipboard.Clipboard)
 
     def returnSnip(self, img):
-        # self.toggleProcessing(True)
-        # self.retryButton.setEnabled(False)
-
-        # self.show()
-        # try:
-        #     self.model.args.temperature = self.tempField.value()
-        #     if self.model.args.temperature == 0:
-        #         self.model.args.temperature = 1e-8
-        # except:
-        #     pass
-
         # Run the model in a separate thread
-        self.thread_ = ModelThread(self, img=img)
+        self.thread_ = ModelThread(self, img)
         self.thread_.finished.connect(self.returnPrediction)
         # self.thread.finished.connect(self.thread.deleteLater)
         print(0)
         self.thread_.start()
+
 
 class ModelThread(QThread):
     finished = pyqtSignal(str)
@@ -135,26 +97,17 @@ class ModelThread(QThread):
         self.img = img
         self.parent_ = parent
 
-    def run(self):
-        # try:
-        #     prediction = self.model(self.img)
-        #     # replace <, > with \lt, \gt so it won't be interpreted as html code
-        #     prediction = prediction.replace('<', '\\lt ').replace('>', '\\gt ')
-        #     self.finished.emit({"success": True, "prediction": prediction})
-        # except Exception as e:
-        #     import traceback
-        #     traceback.print_exc()
-        #     self.finished.emit({"success": False, "prediction": None})
-        
+    def run(self):        
         # print(type(self.img))
         print(1)
-        result = self.parent_.reader.readtext(self.img, detail = 0)
+        print(type(self.parent_))
+        result = self.parent_.reader.readtext(self.img, detail=0, min_size=0, low_text=0.3)
         print(result)
         s = " ".join(result)
         print(s)
         self.finished.emit(s)
+        # self.finished.emit(self.parent_.reader)
         print(2)
-
 
 class SnipWidget(QMainWindow):
     isSnipping = False
@@ -164,11 +117,11 @@ class SnipWidget(QMainWindow):
         super().__init__()
         self.parent = parent
 
-        monitos = get_monitors()
-        bboxes = np.array([[m.x, m.y, m.width, m.height] for m in monitos])
-        x, y, _, _ = bboxes.min(0)
-        w, h = bboxes[:, [0, 2]].sum(1).max(), bboxes[:, [1, 3]].sum(1).max()
-        self.setGeometry(x, y, w-x, h-y)
+        # monitos = get_monitors()
+        # bboxes = np.array([[m.x, m.y, m.width, m.height] for m in monitos])
+        # x, y, _, _ = bboxes.min(0)
+        # w, h = bboxes[:, [0, 2]].sum(1).max(), bboxes[:, [1, 3]].sum(1).max()
+        # self.setGeometry(x, y, w-x, h-y)
 
         self.begin = QtCore.QPoint()
         self.end = QtCore.QPoint()
@@ -180,7 +133,8 @@ class SnipWidget(QMainWindow):
         self.setWindowFlags(Qt.WindowStaysOnTopHint)
         QApplication.setOverrideCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
 
-        self.show()
+        # self.show()
+        self.showFullScreen()
 
     def paintEvent(self, event):
         if self.isSnipping:
@@ -215,7 +169,7 @@ class SnipWidget(QMainWindow):
         self.update()
 
     def mouseReleaseEvent(self, event):
-        self.isSnipping = False
+        self.isSnipping = False        
         QApplication.restoreOverrideCursor()
 
         startPos = self.startPos
@@ -228,34 +182,50 @@ class SnipWidget(QMainWindow):
         x2 = int(max(startPos[0], endPos[0])*factor)
         y2 = int(max(startPos[1], endPos[1])*factor)
 
+        width = x2 - x1
+        height = y2 - y1
+
+        self.close()
         self.repaint()
         QApplication.processEvents()
+        # try:
+        #     img = ImageGrab.grab(bbox=(x1, y1, x2, y2), all_screens=True)
+        # except Exception as e:
+        #     if sys.platform == "darwin":
+        #         img = ImageGrab.grab(bbox=(x1//factor, y1//factor, x2//factor, y2//factor), all_screens=True)
+        #     else:
+        #         raise e
+
         try:
-            img = ImageGrab.grab(bbox=(x1, y1, x2, y2), all_screens=True)
+            pixmap = QApplication.primaryScreen().grabWindow(0, x1, y1, width, height)
+            channel_count = 4
+            image = pixmap.toImage()
+
+            b = image.bits()
+            b.setsize(height * width * channel_count)
+
+            np_array = np.frombuffer(b, np.uint8).reshape((height, width, channel_count))
+
         except Exception as e:
-            if sys.platform == "darwin":
-                img = ImageGrab.grab(bbox=(x1//factor, y1//factor, x2//factor, y2//factor), all_screens=True)
-            else:
-                raise e
+            print(e)
+            
+
         QApplication.processEvents()
 
         self.close()
-        self.begin = QtCore.QPoint()
-        self.end = QtCore.QPoint()
+        # self.begin = QtCore.QPoint()
+        # self.end = QtCore.QPoint()
         # self.parent.returnSnip(np.array(img))
-        self.snipped.emit(np.array(img))
+        # self.snipped.emit(np.array(np_array)) # -> pil to np
+        self.snipped.emit(np_array)
 
 def main():
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+    
     ex = App()
     sys.exit(app.exec_())
 
-def except_hook(cls, exception, traceback):
-    sys.__excepthook__(cls, exception, traceback)
-
 if __name__ == "__main__":
-
-    import sys
-    sys.excepthook = except_hook
-
     main()
+
