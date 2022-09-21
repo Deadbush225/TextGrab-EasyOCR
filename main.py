@@ -1,21 +1,16 @@
 import sys
-import os
-from PyQt5 import QtCore, QtGui
-from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QThread, QBuffer
-# from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QKeySequence, QIcon, QScreen
-from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox, QVBoxLayout, QWidget, QShortcut,\
-    QSystemTrayIcon, QMenu, QAction
+from PyQt5.QtCore import Qt, pyqtSignal, QThread, QPoint, QRect
+from PyQt5.QtGui import QKeySequence, QIcon, QColor, QPainter, QPen, QCursor
+from PyQt5.QtWidgets import QMainWindow, QApplication, QSystemTrayIcon, QMenu, QAction
 from pynput.mouse import Controller
 
 from PIL import ImageGrab, Image
 import numpy as np
-# from screeninfo import get_monitors
 
 import easyocr
 
-QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
-QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 
 class App(QSystemTrayIcon):
@@ -72,8 +67,6 @@ class App(QSystemTrayIcon):
         self.snipWidget.snip()
 
     def returnPrediction(self, result):
-        print(3)
-
         print(f"result: {result}")
 
         clipboard = QApplication.clipboard()
@@ -84,8 +77,7 @@ class App(QSystemTrayIcon):
         # Run the model in a separate thread
         self.thread_ = ModelThread(self, img)
         self.thread_.finished.connect(self.returnPrediction)
-        # self.thread.finished.connect(self.thread.deleteLater)
-        print(0)
+        self.thread_.finished.connect(self.thread.deleteLater)
         self.thread_.start()
 
 
@@ -97,17 +89,11 @@ class ModelThread(QThread):
         self.img = img
         self.parent_ = parent
 
-    def run(self):        
-        # print(type(self.img))
-        print(1)
-        print(type(self.parent_))
+    def run(self):
         result = self.parent_.reader.readtext(self.img, detail=0, min_size=0, low_text=0.3)
-        print(result)
-        s = " ".join(result)
-        print(s)
-        self.finished.emit(s)
-        # self.finished.emit(self.parent_.reader)
-        print(2)
+        str_result = " ".join(result)
+        self.finished.emit(str_result)
+
 
 class SnipWidget(QMainWindow):
     isSnipping = False
@@ -117,21 +103,15 @@ class SnipWidget(QMainWindow):
         super().__init__()
         self.parent = parent
 
-        # monitos = get_monitors()
-        # bboxes = np.array([[m.x, m.y, m.width, m.height] for m in monitos])
-        # x, y, _, _ = bboxes.min(0)
-        # w, h = bboxes[:, [0, 2]].sum(1).max(), bboxes[:, [1, 3]].sum(1).max()
-        # self.setGeometry(x, y, w-x, h-y)
-
-        self.begin = QtCore.QPoint()
-        self.end = QtCore.QPoint()
+        self.begin = QPoint()
+        self.end = QPoint()
 
         self.mouse = Controller()
 
     def snip(self):
         self.isSnipping = True
         self.setWindowFlags(Qt.WindowStaysOnTopHint)
-        QApplication.setOverrideCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
+        QApplication.setOverrideCursor(QCursor(Qt.CrossCursor))
 
         # self.show()
         self.showFullScreen()
@@ -145,13 +125,13 @@ class SnipWidget(QMainWindow):
             opacity = 0
 
         self.setWindowOpacity(opacity)
-        qp = QtGui.QPainter(self)
-        qp.setPen(QtGui.QPen(QtGui.QColor('black'), 2))
-        qp.setBrush(QtGui.QColor(*brushColor))
-        qp.drawRect(QtCore.QRect(self.begin, self.end))
+        qp = QPainter(self)
+        qp.setPen(QPen(QColor('black'), 2))
+        qp.setBrush(QColor(*brushColor))
+        qp.drawRect(QRect(self.begin, self.end))
 
     def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Escape:
+        if event.key() == Qt.Key_Escape:
             QApplication.restoreOverrideCursor()
             self.close()
             self.parent.show()
@@ -209,12 +189,12 @@ class SnipWidget(QMainWindow):
         except Exception as e:
             print(e)
             
-
         QApplication.processEvents()
 
+        self.begin = QPoint()
+        self.end = QPoint()
+
         self.close()
-        # self.begin = QtCore.QPoint()
-        # self.end = QtCore.QPoint()
         # self.parent.returnSnip(np.array(img))
         # self.snipped.emit(np.array(np_array)) # -> pil to np
         self.snipped.emit(np_array)
