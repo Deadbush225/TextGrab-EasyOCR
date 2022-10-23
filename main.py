@@ -9,6 +9,18 @@ import numpy as np
 
 import easyocr
 
+# import sentry_sdk
+# sentry_sdk.init(
+#     dsn="https://8ae9b6a81c9a45c89d565966ef7b14d7@o1286329.ingest.sentry.io/4503969478279168",
+
+#     # Set traces_sample_rate to 1.0 to capture 100%
+#     # of transactions for performance monitoring.
+#     # We recommend adjusting this value in production.
+#     traces_sample_rate=1.0
+# )
+
+# error screenshot -> maybe related with the discoloration of the result image
+
 QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
@@ -20,7 +32,7 @@ class App(QSystemTrayIcon):
         super().__init__()
 
         self.initUI()
-        self.initOCR()
+        # self.initOCR()
         self.snipWidget = SnipWidget(self)
         self.snipWidget.snipped.connect(self.returnSnip)
         self.show()
@@ -77,7 +89,7 @@ class App(QSystemTrayIcon):
         # Run the model in a separate thread
         self.thread_ = ModelThread(self, img)
         self.thread_.finished.connect(self.returnPrediction)
-        self.thread_.finished.connect(self.thread.deleteLater)
+        self.thread_.finished.connect(self.thread_.deleteLater)
         self.thread_.start()
 
 
@@ -86,10 +98,16 @@ class ModelThread(QThread):
 
     def __init__(self, parent, img):
         super().__init__()
-        self.img = img
+        self.img : np.ndarray= img
         self.parent_ = parent
 
     def run(self):
+        print("Running...")
+        
+        im = Image.fromarray(self.img)
+        im.save("screenshot.png")
+
+        # print(f"{self.img.width}x{self.img.height}")
         result = self.parent_.reader.readtext(self.img, detail=0, min_size=0, low_text=0.3)
         str_result = " ".join(result)
         self.finished.emit(str_result)
